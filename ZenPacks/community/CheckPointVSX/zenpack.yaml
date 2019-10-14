@@ -1,1 +1,107 @@
 name: ZenPacks.community.CheckPointVSX
+
+class_relationships:
+  - Products.ZenModel.Device.Device 1:MC VSXFirewall
+
+classes:
+  VSXFirewall:
+    base: [zenpacklib.Component]
+    label: VSX Firewall
+    properties:
+      VSId:
+        grid_display: false
+      HAState:
+        order: 1
+        label: HA State
+      ConnLimit:
+        order: 2
+        label: Connections limit
+
+device_classes:
+  /Network/Check Point:
+    zProperties:
+      zCollectorPlugins:
+        - zenoss.snmp.NewDeviceMap
+        - zenoss.snmp.DeviceMap
+        - CheckPoint.DeviceMap
+        - zenoss.snmp.InterfaceMap
+        - zenoss.snmp.RouteMap
+        - community.snmp.CheckPointVSX
+
+    templates:
+      VSXFirewall:
+        description: VSX Virtual Firewall
+        targetPythonClass: ZenPacks.community.CheckPointVSX.VSXFirewall
+        datasources:
+          vsxCountersConnNum:
+            type: SNMP
+            oid: 1.3.6.1.4.1.2620.1.16.23.1.1.2
+            datapoints:
+              vsxCountersConnNum: {}
+          vsxCountersConnTableLimit:
+            type: SNMP
+            oid: 1.3.6.1.4.1.2620.1.16.23.1.1.4
+            datapoints:
+              vsxCountersConnTableLimit: {}
+        thresholds:
+          connections80:
+            dsnames: [vsxCountersConnNum_vsxCountersConnNum]
+            eventClass: /CheckPoint/VSX/Connections
+            severity: 4
+            maxval: here.getRRDValue('vsxCountersConnTableLimit') * .8
+        graphs:
+          Connections:
+            units: connections
+            miny: 0
+            graphpoints:
+              vsxCountersConnNum:
+                dpName: vsxCountersConnNum_vsxCountersConnNum
+                legend: Connections
+                format: '%6.2lf'
+                sequence: 1
+              vsxCountersConnTableLimit:
+                dpName: vsxCountersConnTableLimit_vsxCountersConnTableLimit
+                legend: Connections Limit
+                format: '%6.2lf'
+                sequence: 2
+          Connections Percentage:
+            units: percent
+            miny: 0
+            maxy: 100
+            graphpoints:
+              vsxCountersConnNum:
+                dpName: vsxCountersConnNum_vsxCountersConnNum
+                lineType: DONTDRAW
+                sequence: 1
+              vsxCountersConnTableLimit:
+                dpName: vsxCountersConnTableLimit_vsxCountersConnTableLimit
+                lineType: DONTDRAW
+                sequence: 2
+              vsxCountersConnNumPerc:
+                dpName: vsxCountersConnNum_vsxCountersConnNum
+                rpn: vsxCountersConnNum,vsxCountersConnTableLimit,/,100,*
+                legend: Connections
+                format: '%3.2lf%%'
+                lineType: AREA
+                sequence: 3
+
+event_classes:
+  /CheckPoint/:
+    remove: false
+    description: CheckPoint event class
+
+  /CheckPoint/VSX:
+    remove: false
+    description: CheckPoint VSX event class
+
+  /CheckPoint/VSX/Connections:
+    remove: false
+    description: CheckPoint VSX Connections event class
+    transform: |+
+      if 'vsxCountersConnNum' in evt.eventKey:
+        ha_state = component.HAState
+        if not ha_state == 'Active':
+          evt.severity = 2
+        msg = 'There are {} connections on {}'.format(evt.current, component.title)
+        evt.message = msg
+        evt.summary = msg
