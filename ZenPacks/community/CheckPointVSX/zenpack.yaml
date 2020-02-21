@@ -44,6 +44,11 @@ device_classes:
             datapoints:
               vsxCountersConnTableLimit: {}
         thresholds:
+          connections60:
+            dsnames: [vsxCountersConnNum_vsxCountersConnNum]
+            eventClass: /CheckPoint/VSX/Connections
+            severity: 3
+            maxval: here.getRRDValue('vsxCountersConnTableLimit') * .6
           connections80:
             dsnames: [vsxCountersConnNum_vsxCountersConnNum]
             eventClass: /CheckPoint/VSX/Connections
